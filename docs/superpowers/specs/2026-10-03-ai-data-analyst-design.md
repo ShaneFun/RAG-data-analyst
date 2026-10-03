@@ -14,7 +14,7 @@ The app lets anyone ask business questions in plain English about a fictional on
 
 **Two goals shape every decision:**
 1. **Get noticed:** use the stack companies actually use (FastAPI, Next.js, PostgreSQL, pgvector, Claude API, Docker, GitHub Actions), with a live demo link.
-2. **Be explainable:** keep the feature set small enough that the author can explain every component and decision in an interview.
+2. **Be explainable:** keep the feature set small enough that the author can explain every component and decision in an interview. The code is written with AI assistance; the author's job is to **understand and explain** it (quizzes after each milestone, `DECISIONS.md`, `NOTES.md`).
 
 ### Success criteria
 | Criterion | Target |
@@ -29,7 +29,6 @@ The app lets anyone ask business questions in plain English about a fictional on
 
 ### Non-goals (deliberately out of scope)
 - Follow-up questions / conversation memory (a later bonus)
-- A LangGraph version of the agent (a later bonus)
 - Hybrid (BM25 + vector) knowledge search (a later bonus)
 - User accounts, authentication, uploading your own data
 - Real customer data of any kind
@@ -41,7 +40,7 @@ The app lets anyone ask business questions in plain English about a fictional on
 ```
 ┌──────────────┐  POST /ask   ┌──────────────────────────── FastAPI (Docker, Render) ───────────────────────────┐
 │ Next.js (TS) │ ───────────► │  rate limit · CORS                                                               │
-│ Tailwind     │              │  Agent loop (Claude tool calling, max 8 steps)                                   │
+│ Tailwind     │              │  LangGraph agent (Claude via LangChain, tool calling, max 8 steps)               │
 │ Vercel       │ ◄─────────── │     ├─ search_knowledge(query) ──► FastEmbed (bge-small-en-v1.5) ──► pgvector    │
 └──────────────┘  JSON answer │     └─ run_sql(sql) ──► sqlglot validator ──► Postgres as read-only role         │
                               └──────────────────────────────────────────────────────────────────────────────────┘
@@ -53,16 +52,17 @@ The app lets anyone ask business questions in plain English about a fictional on
 | Layer | Choice |
 |---|---|
 | Back end | Python 3.12, FastAPI, Pydantic |
-| LLM | Claude API with native tool calling; model set by `LLM_MODEL` env var (default `claude-sonnet-5-5`) |
+| LLM | Claude API via LangChain `ChatAnthropic` with native tool calling; model set by `LLM_MODEL` env var (default `claude-sonnet-5-5`) |
+| Agent | **LangGraph** state graph; tools defined with LangChain `@tool` |
 | Embeddings | FastEmbed, `BAAI/bge-small-en-v1.5` (384-d), runs inside the API container |
-| Database | Supabase PostgreSQL with the `pgvector` extension |
+| Database | Supabase PostgreSQL with the `pgvector` extension; `psycopg` 3 with a **connection pool** (`psycopg_pool`) in the API |
 | SQL safety | `sqlglot` parser + read-only Postgres role + `statement_timeout` |
 | Front end | Next.js (App Router) + TypeScript + Tailwind; charts with Recharts |
 | Containers | Docker (API image); `docker-compose` for local development (API + `pgvector/pgvector` Postgres) |
 | CI | GitHub Actions: ruff, pytest (Postgres service container), front-end build |
 | Hosting | API on Render (Docker deploy), web on Vercel, DB on Supabase |
 
-The **agent loop is hand-written** (about 100 lines, no framework), so every step can be explained.
+The agent uses **LangChain components** (`ChatAnthropic`, `@tool`) wired as a **LangGraph** graph. LangChain's prebuilt SQL agent (`create_sql_agent`) is deliberately **not** used, because it would bypass the custom SQL validator and safety design.
 
 ---
 
@@ -98,6 +98,9 @@ T3 is the **star demo**: "Why did North sales drop in March 2025?" needs a drill
 - Role `analyst_ro`: `SELECT` only on `customers_safe`, `products`, `orders`, `order_items`, `refunds`. **No access** to `customers` or the knowledge table. `statement_timeout = 5s`.
 - The API's SQL connection always uses `analyst_ro`. A separate admin connection (used only by the setup scripts and knowledge search) is never exposed to the LLM.
 
+### 3.5 Indexes (for query speed)
+B-tree indexes on `orders(order_date)`, `orders(region)`, `orders(customer_id)`, `order_items(order_id)`, `order_items(product_id)`, `products(category)`, `products(supplier)`, `refunds(order_item_id)`. The `knowledge` table is small enough that exact vector search needs no vector index.
+
 ---
 
 ## 4. Knowledge base (RAG over metadata, never data)
@@ -125,12 +128,16 @@ Table `knowledge(id, kind, title, content, embedding vector(384))`, with `kind �
 
 ## 5. Agent
 
-### 5.1 Loop (`backend/app/agent/loop.py`)
-1. Build messages: system prompt (role, rules, today's date, the list of allowed tables) + user question.
-2. Call Claude with the two tools.
-3. If the response contains tool calls → execute them → append the `tool_result` messages → repeat.
-4. Stop when Claude returns a final text answer, **or** after **8 tool steps** (then return an honest "couldn't answer" message with what was tried).
-5. Return the final payload (Section 6), including every step.
+### 5.1 LangGraph graph (`backend/app/agent/graph.py`)
+```
+START → agent ──has tool calls?──► tools ──► agent …
+              └─ final answer, or 8 tool steps reached ──► END
+```
+- **State:** `messages` (the conversation, using LangGraph's message reducer) + `tool_steps` (count) + `steps` (a log of every tool call for the response).
+- **`agent` node:** `ChatAnthropic.bind_tools([search_knowledge, run_sql])` is called with the system prompt (role, rules, today's date, allowed tables) + messages.
+- **`tools` node:** executes the requested tools, appends `ToolMessage`s, increments `tool_steps`, and logs each call to `steps`.
+- **Conditional edge after `agent`:** go to `tools` if the last message has tool calls **and** `tool_steps < 8`; otherwise END. If the limit is hit, the API returns an honest "couldn't answer" message summarising what was tried.
+- The compiled graph is built once at startup and invoked per request; the API turns the final state into the payload (Section 6).
 
 ### 5.2 Tools
 | Tool | Input | Output |
@@ -200,7 +207,7 @@ On acceptance: if there's no `LIMIT`, or the limit is > 200, set `LIMIT 200`. Th
 ### 8.1 Automated tests (pytest, CI, no LLM calls)
 - **Validator:** allows valid SELECT/CTE/UNION; blocks DROP/INSERT/UPDATE/DELETE, multiple statements, raw `customers`, unknown tables; enforces LIMIT.
 - **Generator:** T1–T3 assertions from Section 3.3; row counts in the expected ranges; same seed → identical output.
-- **Agent loop with a fake LLM client:** a SQL error leads to a retry; stops at 8 steps; a refusal path; payload shape.
+- **Agent graph with a fake chat model** (scripted tool-call responses, no API calls): a SQL error leads to a retry; stops at 8 tool steps; a refusal path; payload shape.
 - **Knowledge search** (against a test DB): the query "revenue" returns the glossary revenue entry in the top 5.
 - **API:** `/health`, input validation, rate-limit response.
 
@@ -240,7 +247,8 @@ ai-data-analyst/
 │  │  ├─ main.py            # FastAPI app, routes, CORS, rate limit
 │  │  ├─ config.py          # settings from env
 │  │  ├─ schemas.py         # request/response models
-│  │  ├─ agent/  (loop.py, tools.py, prompts.py, llm.py)
+│  │  ├─ db.py              # connection pools (read-only + admin)
+│  │  ├─ agent/  (graph.py, tools.py, prompts.py, llm.py)
 │  │  ├─ sql/    (validator.py, executor.py)
 │  │  └─ knowledge/ (embed.py, search.py)
 │  ├─ tests/
@@ -259,17 +267,17 @@ ai-data-analyst/
 
 ---
 
-## 11. Build milestones (each ends with an explain-back check)
-1. **Data:** schema, generator with T1–T3, roles/views, generator tests.
+## 11. Build milestones (each ends with a short explanation + quiz)
+1. **Data:** schema + indexes, generator with T1–T3, roles/views, generator tests.
 2. **Knowledge:** YAML sources, embeddings, pgvector search, search test.
-3. **SQL safety:** validator + executor + tests.
-4. **Agent:** LLM client, tools, loop, fake-LLM tests.
+3. **SQL safety:** validator + executor (connection pool) + tests.
+4. **Agent:** LangChain `ChatAnthropic` + `@tool` tools, LangGraph graph, fake-model tests.
 5. **API:** FastAPI routes, schemas, chart hint, rate limit, CORS.
 6. **Front end:** single page with answer/SQL/table/chart/steps.
 7. **Evaluation:** golden set + runner + first results.
 8. **Ship:** Docker, docker-compose, CI, Render/Vercel/Supabase deploy, README, DECISIONS.md.
 
-After each milestone the author explains in their own words what was built and why, and records any decision in `DECISIONS.md`.
+After each milestone: a plain-language walkthrough of what was built and why, a 3–5 question interview-style quiz, decisions recorded in `DECISIONS.md`, and the session summarised in `NOTES.md`.
 
 ## 12. Later bonuses (not part of this spec)
-Follow-up questions (conversation memory) · LangGraph version of the loop · hybrid BM25 + vector knowledge search with RRF · Phoenix/OpenTelemetry tracing.
+Follow-up questions (conversation memory) · hybrid BM25 + vector knowledge search with RRF · Phoenix/OpenTelemetry tracing · response caching and streaming steps to the UI (the "1,000 users" improvements).

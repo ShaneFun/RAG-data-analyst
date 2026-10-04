@@ -15,8 +15,7 @@ LLM_ROW_LIMIT = 50  # rows shown to the LLM; the API still returns up to max_row
 
 @dataclass
 class ToolContext:
-    admin_pool: ConnectionPool    # knowledge search (the read-only role can't read it)
-    ro_pool: ConnectionPool       # agent SQL, as analyst_ro
+    ro_pool: ConnectionPool       # analyst_ro: agent SQL and knowledge search
     embedder: Embedder
     max_rows: int = 200
     sql_timeout: str = "5s"
@@ -29,7 +28,7 @@ def make_tools(ctx: ToolContext) -> list[BaseTool]:
         writing SQL. Optional kind narrows the search: 'dictionary' (tables, columns, values),
         'glossary' (metric definitions: revenue, refund rate, AOV...), 'example' (verified
         question -> SQL pairs), 'handbook' (business rules, policies, common mistakes)."""
-        with ctx.admin_pool.connection() as conn:
+        with ctx.ro_pool.connection() as conn:
             hits = _search(conn, ctx.embedder, query, k=5, kind=kind)
         if not hits:
             return "No knowledge found for that query.", []

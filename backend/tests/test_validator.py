@@ -75,3 +75,8 @@ def test_custom_max_rows():
 @pytest.mark.parametrize("example", load_examples(), ids=lambda e: e["question"][:40])
 def test_all_knowledge_examples_pass_validator(example):
     assert validate_sql(example["sql"]).ok
+
+
+@pytest.mark.parametrize("sql", ["SELECT * FROM knowledge", "SELECT * FROM knowledge_sections"])
+def test_agent_sql_cannot_read_the_knowledge_tables(sql):
+    assert not validate_sql(sql).ok

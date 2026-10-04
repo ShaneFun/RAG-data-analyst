@@ -26,9 +26,8 @@ class AgentRuntime:
 
 
 def build_runtime(settings: Settings) -> AgentRuntime:
-    admin_pool = make_pool(settings.database_url_admin, max_size=3)
     ro_pool = make_pool(settings.database_url_ro, max_size=5)
-    tools = make_tools(ToolContext(admin_pool, ro_pool, Embedder(settings.embedding_model),
+    tools = make_tools(ToolContext(ro_pool, Embedder(settings.embedding_model),
                                    settings.max_rows, settings.sql_timeout))
     llm = make_llm(settings)
 
@@ -46,4 +45,4 @@ def build_runtime(settings: Settings) -> AgentRuntime:
     def stream(question: str) -> Iterator[dict]:
         return stream_agent(graph(), question, **options)
 
-    return AgentRuntime(ask=ask, stream=stream, pools=[admin_pool, ro_pool])
+    return AgentRuntime(ask=ask, stream=stream, pools=[ro_pool])

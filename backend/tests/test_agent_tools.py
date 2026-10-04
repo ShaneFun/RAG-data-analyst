@@ -10,10 +10,8 @@ from app.db import make_pool
 
 @pytest.fixture(scope="module")
 def tools(knowledge_db, embedder):
-    admin = make_pool(knowledge_db["admin_url"], max_size=2)
     ro = make_pool(knowledge_db["ro_url"], max_size=2)
-    yield {t.name: t for t in make_tools(ToolContext(admin, ro, embedder))}
-    admin.close()
+    yield {t.name: t for t in make_tools(ToolContext(ro, embedder))}
     ro.close()
 
 

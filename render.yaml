@@ -11,11 +11,12 @@ services:
     envVars:
       - key: DEEPSEEK_API_KEY
         sync: false
-      - key: DATABASE_URL_ADMIN        # Supabase connection string (postgres user)
-        sync: false
+      # Only the read-only credential: the API never needs the admin password.
       - key: DATABASE_URL_RO           # Supabase connection string for analyst_ro
         sync: false
       - key: ALLOWED_ORIGINS           # your Vercel URL, e.g. https://larkspur-analyst.vercel.app
         sync: false
-      - key: RATE_LIMIT
+      - key: RATE_LIMIT                # per visitor
         value: 10/hour
+      - key: DAILY_QUESTION_LIMIT      # all visitors together (caps LLM spend)
+        value: 200/day

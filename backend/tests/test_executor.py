@@ -64,3 +64,13 @@ def test_pool_resets_session_settings(pool):
 def test_to_dict_shape(pool):
     d = run_select(pool, "SELECT 1 AS one").to_dict()
     assert set(d) == {"ok", "sql", "columns", "rows", "row_count", "error"}
+
+
+def test_pool_fails_fast_when_no_connection_is_available():
+    from app.db import make_pool
+    pool = make_pool("postgresql://nobody:wrong@localhost:5432/nowhere", min_size=0,
+                     timeout=0.5)
+    try:
+        assert pool.timeout == 0.5
+    finally:
+        pool.close()

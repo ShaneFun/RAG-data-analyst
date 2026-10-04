@@ -29,6 +29,9 @@ Agent SQL runs as `analyst_ro`: SELECT on exactly five objects. Personal data (n
 
 The prompt is not a security boundary: prompt injection can fool the LLM, but it cannot change database permissions. The timeout protects **availability**: even a read-only query (e.g. an accidental cross join) could otherwise slow the database for every user.
 
+### The running API holds no admin credentials
+A design review found the API was connecting as the `postgres` superuser just to read the knowledge base, so any bug in a deployed API could have exposed full control of the database. Now the read-only role may also SELECT the two knowledge tables (they hold metadata, not customer data), and the API only receives `DATABASE_URL_RO`. The admin password is used once, from my machine, by the setup script. The agent's own SQL still can't touch the knowledge tables: the validator allows only the five data tables (tested).
+
 ### Parse, don't string-match
 `SELECT 1; DROP TABLE orders` and `SELECT … INTO` both start with SELECT; string checks would let them through and would wrongly block valid CTEs. The parser sees the real structure.
 
@@ -89,7 +92,7 @@ Graph tests use a scripted fake chat model, so the loop, self-correction, step l
 `POST /ask` and `GET /health`, with Pydantic request/response models (question 1–500 characters, whitespace stripped). The endpoint is a plain `def`, so FastAPI runs the blocking agent in its thread pool. `create_app(settings, ask)` takes the agent as a dependency, so API tests use a fake.
 
 ### Protecting the public demo
-Per-IP rate limit (slowapi, 10 questions/hour by default), CORS restricted to the website's origin, DeepSeek outages mapped to HTTP 503 with a friendly message, and the server refuses to start without an API key. Plus a spend limit on the DeepSeek account.
+Per-visitor rate limit (slowapi, 10 questions/hour, shared by `/ask` and `/ask/stream`) **plus a global daily cap** (200/day for everyone together, so many visitors or one visitor with many IPs can't drain the LLM balance; DeepSeek being prepaid is the final hard cap). CORS restricted to the website's origin, DeepSeek outages mapped to HTTP 503, unexpected crashes during streaming logged with a traceback but shown to users as a generic error (no internals leak), and a 10 s database pool timeout so a database outage fails fast instead of hanging. One log line per answer (steps, tokens, cost, latency) gives basic observability. Rate-limit counters live in memory, which is right for one instance; with several instances they'd move to Redis.
 
 ## Evaluation
 

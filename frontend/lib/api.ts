@@ -35,7 +35,9 @@ async function post(path: string, question: string): Promise<Response> {
     throw new AskError(`Can't reach the analyst API at ${API_URL}. Check that the backend is running.`);
   }
   if (response.status === 429) {
-    throw new AskError("This demo allows 10 questions an hour per visitor. Try again later.");
+    throw new AskError(
+      "The demo's question limit has been reached (10 an hour per visitor, 200 a day in total). Try again later.",
+    );
   }
   if (response.status === 422) {
     throw new AskError("Questions need to be between 1 and 500 characters.");

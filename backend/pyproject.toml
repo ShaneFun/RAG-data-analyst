@@ -43,4 +43,4 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "data", "tests"]   # tells the linter these are OUR packages
+known-first-party = ["app", "data", "evals", "tests"]   # tells the linter these are OUR packages

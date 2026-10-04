@@ -12,8 +12,9 @@ class ScriptedLLM:
         self.responses = list(responses)
         self.calls: list[list] = []
 
-    def bind_tools(self, tools):
+    def bind_tools(self, tools, **kwargs):
         self.bound_tools = [t.name for t in tools]
+        self.bind_kwargs = getattr(self, "bind_kwargs", []) + [kwargs]
         return self
 
     def invoke(self, messages):

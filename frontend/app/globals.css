@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --night: #1e2240;
+  --night-soft: #4a4f73;
+  --petal: #5b4bd6;
+  --petal-soft: #e7e3fb;
+  --stem: #3e7c59;
+  --stem-soft: #e3f0e8;
+  --rust: #b4473a;
+  --rust-soft: #f8e6e3;
+  --mist: #eef0f7;
+  --line: #d9dcea;
+  --paper: #fbfbfd;
+}
+
+@theme inline {
+  --color-night: var(--night);
+  --color-night-soft: var(--night-soft);
+  --color-petal: var(--petal);
+  --color-petal-soft: var(--petal-soft);
+  --color-stem: var(--stem);
+  --color-stem-soft: var(--stem-soft);
+  --color-rust: var(--rust);
+  --color-rust-soft: var(--rust-soft);
+  --color-mist: var(--mist);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --night: #e9eaf6;
+    --night-soft: #a7abc9;
+    --petal: #9d92f2;
+    --petal-soft: #2b2752;
+    --stem: #7cc39b;
+    --stem-soft: #1d3428;
+    --rust: #ef8b7d;
+    --rust-soft: #3d1f1b;
+    --mist: #1d2036;
+    --line: #2f3352;
+    --paper: #13152a;
+  }
+}
+
+body {
+  background: var(--paper);
+  color: var(--night);
+}
+
+:focus-visible {
+  outline: 2px solid var(--petal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

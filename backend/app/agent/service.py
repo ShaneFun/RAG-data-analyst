@@ -44,8 +44,9 @@ def run_agent(graph, question: str, *, max_steps: int = 8, input_price_per_m: fl
         {"recursion_limit": 4 * max_steps + 10},
     )
     final = state["messages"][-1]
-    stopped_early = bool(getattr(final, "tool_calls", None))
-    answer = STEP_LIMIT_MESSAGE if stopped_early else message_text(final)
+    stopped_early = state["tool_steps"] >= max_steps     # answer was forced at the tool limit
+    text = "" if getattr(final, "tool_calls", None) else message_text(final)
+    answer = text or STEP_LIMIT_MESSAGE
 
     input_tokens = output_tokens = 0
     for msg in state["messages"]:

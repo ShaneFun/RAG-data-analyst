@@ -58,7 +58,7 @@ The agent is a small LangGraph graph: `agent` (the LLM with two tools bound) →
 `search_knowledge(query)` (RAG over the knowledge base) and `run_sql(sql)` (validated, read-only, ≤200 rows). Both return **text for the LLM and a structured artifact for the API** (`response_format="content_and_artifact"`): the LLM sees at most 50 rows (keeps prompts small), while the website gets up to 200 rows plus the SQL. Tool crashes and unknown tools become error messages instead of crashing the request.
 
 ### Self-correction
-Database errors come back to the LLM as the tool result, so it reads e.g. "column category does not exist" and rewrites the query (execution-guided correction). The step limit stops endless loops and returns an honest "couldn't finish" message.
+Database errors come back to the LLM as the tool result, so it reads e.g. "column category does not exist" and rewrites the query (execution-guided correction). The step limit stops endless loops. When it is hit, the agent gets **one last call with tools disabled** (`tool_choice="none"`) and must answer from what it already found and say what it couldn't check. I added this after a real run: on "Why did North sales drop?" the agent had found the Electronics stock-out by step 8 but returned "couldn't finish", throwing the evidence away.
 
 ### DeepSeek as the LLM
 `deepseek-chat` through LangChain's `ChatDeepSeek`: strong at SQL and tool calling, and very cheap (the whole evaluation costs cents). Temperature 0 for deterministic SQL, one automatic retry, 60 s timeout. Because the model is behind LangChain's chat-model interface, swapping providers is a one-file change (`app/agent/llm.py`).
@@ -76,3 +76,24 @@ Graph tests use a scripted fake chat model, so the loop, self-correction, step l
 
 ### Protecting the public demo
 Per-IP rate limit (slowapi, 10 questions/hour by default), CORS restricted to the website's origin, DeepSeek outages mapped to HTTP 503 with a friendly message, and the server refuses to start without an API key. Plus a spend limit on the DeepSeek account.
+
+## Evaluation
+
+### Execution accuracy, not SQL matching
+30 held-out questions (none appear in the knowledge base): 23 with a gold SQL query, 4 trend-discovery questions and 3 that must be declined. Many different SQL queries are correct, so I compare **results**: the gold query and the agent's last query both run, and the agent passes if every gold column appears among its columns (order-insensitive, extra columns allowed, numbers within 0.5%). Trend questions are scored by whether the answer names the planted cause (e.g. "Electronics", "Brightline"), refusals by declining without running SQL. A test runs every gold query as the read-only role, so the benchmark itself can't be wrong.
+
+### Why a fixed eval set matters
+It turns "the demo looked good" into a number I can re-run after every prompt or model change (regression testing for LLM behaviour), with cost and latency recorded per question.
+
+## Deployment
+
+### One Docker image, three free services
+The API runs as a Docker image (python:3.12-slim + uv, locked dependencies, embedding model baked in so cold starts don't download 70 MB, non-root user). Render builds it from `render.yaml`; Postgres + pgvector is on Supabase (the same `data.setup_db` script builds it); the Next.js site is on Vercel. Secrets live only in the platforms' dashboards (`sync: false`), never in git. `--proxy-headers` lets the rate limiter see real client IPs behind Render's proxy.
+
+### CI
+GitHub Actions runs on every push: ruff + 160+ pytest tests against a real pgvector service container (no LLM key needed because agent tests use a fake), frontend lint + production build, and a Docker build. The paid LLM eval runs manually, not in CI.
+
+## Frontend
+
+### Show the work, not just the answer
+Next.js (App Router) + Tailwind + recharts. The answer sits next to its evidence: a chart picked by the backend's `chart_hint`, the result table, the exact SQL, and a numbered **step trace** where failed queries are marked, so a user can see the agent search, fail, fix and answer. For an analytics tool, trust comes from being able to check the numbers.

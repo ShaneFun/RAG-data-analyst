@@ -3,6 +3,7 @@ import psycopg
 import pytest
 from psycopg.conninfo import make_conninfo
 
+from app.config import Settings
 from app.knowledge.embed import Embedder
 from data.db_setup import apply_schema, reset_schema
 from data.generate import generate
@@ -12,7 +13,9 @@ from data.load_knowledge import load_knowledge
 from data.roles import setup_roles
 from tests.helpers import ensure_database
 
-RO_PASSWORD = "analyst_ro_test"
+# Postgres roles are shared by every database on the server, so the test database must use the
+# same analyst_ro password as the dev database (otherwise running the tests breaks the app).
+RO_PASSWORD = Settings().analyst_ro_password
 
 
 @pytest.fixture(scope="session")

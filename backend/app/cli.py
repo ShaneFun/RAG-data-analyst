@@ -10,6 +10,7 @@ from app.wiring import build_runtime
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
     question = " ".join(sys.argv[1:]) or "Why did North sales drop in March 2025?"
     runtime = build_runtime(get_settings())
     try:

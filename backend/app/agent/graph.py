@@ -1,14 +1,19 @@
 """The agent as a LangGraph state graph.
 
 START -> agent --(tool calls and steps left?)--> tools -> agent -> ... -> END
+When the tool budget is used up, the agent gets one last call with tools disabled, so a
+long investigation ends with a best-effort answer instead of nothing.
 """
 import operator
 from typing import Annotated, Any, TypedDict
 
-from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+
+FINAL_ANSWER_NUDGE = ("You have reached the tool-call limit. Using only the results above, answer "
+                      "the question now and say briefly what you could not check.")
 
 
 class AgentState(TypedDict):
@@ -35,10 +40,13 @@ def build_graph(llm: Any, tools: list[BaseTool], system_prompt: str, max_steps: 
     """llm: any LangChain chat model that supports bind_tools()."""
     tools_by_name = {t.name: t for t in tools}
     model = llm.bind_tools(tools)
+    final_model = llm.bind_tools(tools, tool_choice="none")   # same tools, but may not call them
 
     def agent(state: AgentState) -> dict:
-        response = model.invoke([SystemMessage(system_prompt), *state["messages"]])
-        return {"messages": [response]}
+        prompt = [SystemMessage(system_prompt), *state["messages"]]
+        if state["tool_steps"] >= max_steps:
+            return {"messages": [final_model.invoke([*prompt, HumanMessage(FINAL_ANSWER_NUDGE)])]}
+        return {"messages": [model.invoke(prompt)]}
 
     def run_tools(state: AgentState) -> dict:
         last = state["messages"][-1]

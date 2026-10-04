@@ -15,5 +15,22 @@ services:
       timeout: 3s
       retries: 30
 
+  # The FastAPI backend in a container: `docker compose up --build api`
+  # (run `uv run python -m data.setup_db` once first so the database has data).
+  api:
+    build: ./backend
+    env_file:
+      - path: backend/.env      # DEEPSEEK_API_KEY lives here (git-ignored)
+        required: false
+    environment:
+      # inside Docker the database host is the service name "db", not localhost
+      DATABASE_URL_ADMIN: postgresql://postgres:postgres@db:5432/larkspur
+      DATABASE_URL_RO: postgresql://analyst_ro:analyst_ro@db:5432/larkspur
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:

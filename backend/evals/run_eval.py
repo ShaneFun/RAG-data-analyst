@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -25,6 +26,7 @@ RESULTS_DIR = Path(__file__).with_name("results")
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="comma-separated question ids")
     args = parser.parse_args()

@@ -57,6 +57,17 @@ def test_stops_at_max_steps():
     assert len(result.steps) == 3 and len(llm.calls) == 4
 
 
+def test_at_step_limit_the_model_must_answer_from_what_it_found():
+    script = [ai_call("run_sql", {"sql": GOOD_SQL}, f"c{i}") for i in range(3)]
+    script.append(ai_answer("Partial answer: North fell 85%."))
+    graph, llm = _graph(script, max_steps=3)
+    result = run_agent(graph, "Why did North drop?", max_steps=3)
+    assert result.answer == "Partial answer: North fell 85%."
+    assert result.stopped_early is True
+    assert {"tool_choice": "none"} in llm.bind_kwargs        # final call cannot use tools
+    assert "limit" in llm.calls[-1][-1].content.lower()     # and is told why
+
+
 def test_refusal_needs_no_tools():
     graph, _ = _graph([ai_answer("Sorry, I can't delete data.")])
     result = run_agent(graph, "Delete all orders")

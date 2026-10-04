@@ -129,3 +129,32 @@ def test_stream_validates_input_and_shares_the_rate_limit_with_ask():
         assert c.post("/ask/stream", json={"question": "b"}).status_code == 200
         assert c.post("/ask/stream", json={"question": "c"}).status_code == 429
         assert c.post("/ask", json={"question": "d"}).status_code == 429
+
+
+# --- Production hardening (design review) ---
+
+def test_global_daily_cap_applies_across_all_visitors():
+    # per-visitor limit is generous here; the shared daily budget is what runs out
+    with make_client(rate_limit="100/hour", daily_question_limit="2/day") as c:
+        assert c.post("/ask", json={"question": "a"}).status_code == 200
+        assert c.post("/ask/stream", json={"question": "b"}).status_code == 200
+        assert c.post("/ask", json={"question": "c"}).status_code == 429
+
+
+def test_unexpected_crash_mid_stream_becomes_an_error_event_and_is_logged(caplog):
+    def crashing_stream(question):
+        yield {"type": "step", "step": {"tool": "run_sql", "input": {}, "ok": True,
+                                        "summary": "1 rows"}}
+        raise RuntimeError("pool exhausted")
+
+    with make_client(stream=crashing_stream) as c, caplog.at_level("ERROR", "larkspur.api"):
+        events = sse_events(c.post("/ask/stream", json={"question": "anything"}))
+    assert [e["type"] for e in events] == ["step", "error"]
+    assert "pool exhausted" not in events[-1]["message"]      # no internals leak to users
+    assert "pool exhausted" in caplog.text
+
+
+def test_each_answer_is_logged_with_cost_and_latency(client, caplog):
+    with caplog.at_level("INFO", "larkspur.api"):
+        client.post("/ask", json={"question": "Orders by region?"})
+    assert "answered" in caplog.text and "cost=$" in caplog.text and "latency=" in caplog.text

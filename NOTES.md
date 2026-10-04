@@ -109,3 +109,15 @@ Get an **Anthropic API key** (console.anthropic.com) and set a small monthly spe
 - **BM25** (term frequency, inverse document frequency, length normalisation) vs **dense vectors**; **RRF** fuses by rank.
 - **recall@k, hit@1, MRR**; evaluate retrieval separately from generation.
 - **Server-Sent Events**, LangGraph stream modes (`updates`, `messages`, `values`), why errors mid-stream become events.
+
+## Design review (2026-10-05)
+
+| Finding | Fix |
+|---|---|
+| 🔴 The running API connected as the `postgres` superuser just to read the knowledge base | the read-only role may read the 2 knowledge tables; the API now only gets `DATABASE_URL_RO` (validator still blocks agent SQL from them) |
+| 🟠 Database down → each request waited 30 s per connection attempt | pool timeout 10 s |
+| 🟠 Per-IP limit only → many IPs could drain the LLM balance | global daily cap (200/day) shared by all visitors |
+| 🟡 Crash mid-stream → vague message, nothing logged | `error` event with a generic message + traceback in the log |
+| 🟡 No usage record | one log line per answer: steps, tokens, cost, latency |
+
+Concepts: **least privilege for the running service** (not just for the agent), **fail fast**, **global vs per-user rate limits**, **don't leak internals in error messages**, **basic observability**.

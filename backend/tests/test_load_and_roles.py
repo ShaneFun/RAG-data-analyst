@@ -36,11 +36,21 @@ def test_read_only_role_can_read_allowed_tables(loaded_db, dataset):
 @pytest.mark.parametrize("query", [
     "SELECT * FROM customers",
     "SELECT email FROM customers",
-    "SELECT * FROM knowledge",
 ])
 def test_read_only_role_cannot_read_private_tables(loaded_db, query):
     with psycopg.connect(loaded_db["ro_url"]) as conn, pytest.raises(errors.InsufficientPrivilege):
         conn.execute(query)
+
+
+def test_read_only_role_can_read_knowledge_so_the_api_needs_no_admin_password(loaded_db):
+    # knowledge is metadata (not customer data); the SQL validator still stops the AGENT's
+    # queries from touching it, so only search_knowledge reads it
+    with psycopg.connect(loaded_db["ro_url"]) as conn:
+        conn.execute("SELECT id FROM knowledge LIMIT 1")
+        conn.execute("SELECT id FROM knowledge_sections LIMIT 1")
+    denied = (errors.InsufficientPrivilege, errors.ReadOnlySqlTransaction)
+    with psycopg.connect(loaded_db["ro_url"]) as conn, pytest.raises(denied):
+        conn.execute("DELETE FROM knowledge")
 
 
 @pytest.mark.parametrize("query", [

@@ -6,9 +6,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # admin connection: setup scripts + knowledge search, never given to the AI
+    # admin connection: only for the setup scripts (data.setup_db); the API never uses it
     database_url_admin: str = "postgresql://postgres:postgres@localhost:5432/larkspur"
-    # read-only connection: used to run the AI's SQL
+    # read-only connection: the only credential the running API needs
     database_url_ro: str = "postgresql://analyst_ro:analyst_ro@localhost:5432/larkspur"
     analyst_ro_password: str = "analyst_ro"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Agent + API
     max_agent_steps: int = 8
     rate_limit: str = "10/hour"
+    daily_question_limit: str = "200/day"   # all visitors together: caps LLM spend
     allowed_origins: str = "http://localhost:3000"
 
 

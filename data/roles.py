@@ -3,6 +3,10 @@ import psycopg
 from psycopg import sql
 
 READ_TABLES = ("customers_safe", "products", "orders", "order_items", "refunds")
+# The knowledge base is metadata, not customer data. Letting the read-only role read it means
+# the running API needs no admin credentials at all. The agent's own SQL still can't reach it:
+# the validator only allows READ_TABLES.
+KNOWLEDGE_TABLES = ("knowledge", "knowledge_sections")
 
 
 def setup_roles(conn: psycopg.Connection, ro_password: str, timeout: str = "5s") -> None:
@@ -25,5 +29,5 @@ def setup_roles(conn: psycopg.Connection, ro_password: str, timeout: str = "5s")
         sql.Identifier(conn.info.dbname)))
     conn.execute("GRANT USAGE ON SCHEMA public TO analyst_ro")
     conn.execute("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM analyst_ro")
-    for table in READ_TABLES:
+    for table in READ_TABLES + KNOWLEDGE_TABLES:
         conn.execute(sql.SQL("GRANT SELECT ON {} TO analyst_ro").format(sql.Identifier(table)))

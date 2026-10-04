@@ -72,7 +72,9 @@ Next.js (Vercel) ──POST /ask──▶ FastAPI (Render, Docker) ──▶ Lan
   functions, LIMIT ≤ 200), READ ONLY transactions, a 5 s statement timeout, and a role with
   SELECT on five objects. Personal data is hidden behind a `customers_safe` view. The prompt is
   never the security boundary.
-- **API**: FastAPI + Pydantic, per-IP rate limit, CORS, LLM outage → 503. `POST /ask/stream`
+- **API**: FastAPI + Pydantic, runs with **only the read-only database credential**, per-visitor
+  and global daily rate limits, CORS, LLM outage → 503, one log line per answer (steps, tokens,
+  cost, latency). `POST /ask/stream`
   streams Server-Sent Events: each tool step as it finishes and the answer token by token
   (first words after ~1 s instead of a blank wait).
 - **Frontend**: the answer next to its evidence (chart, table, SQL) and a numbered step trace
@@ -106,12 +108,13 @@ cd backend && uv run python -m evals.retrieval  # search quality: vector vs BM25
    your machine:
    `DATABASE_URL_ADMIN="<supabase connection string>" ANALYST_RO_PASSWORD="<strong password>" uv run --project backend python -m data.setup_db`
 2. **API: Render.** New → Blueprint → this repo (uses `render.yaml`). Fill in `DEEPSEEK_API_KEY`,
-   `DATABASE_URL_ADMIN`, `DATABASE_URL_RO` (user `analyst_ro` with the password above) and
-   `ALLOWED_ORIGINS` (your Vercel URL).
+   `DATABASE_URL_RO` (user `analyst_ro` with the password above; with Supabase's connection pooler
+   the user name is `analyst_ro.<project-ref>`) and `ALLOWED_ORIGINS` (your Vercel URL).
+   The API never gets the admin password: that is only used once, from your machine, in step 1.
 3. **Frontend: Vercel.** Import the repo, root directory `frontend`, set
    `NEXT_PUBLIC_API_URL` to the Render URL.
-4. Set a monthly spend limit on the DeepSeek account. The API also rate-limits each visitor to
-   10 questions an hour.
+4. DeepSeek is prepaid, so the balance is the hard spending cap. The API also limits each
+   visitor to 10 questions an hour and everyone together to 200 a day.
 
 ## Project layout
 

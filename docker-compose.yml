@@ -23,8 +23,8 @@ services:
       - path: backend/.env      # DEEPSEEK_API_KEY lives here (git-ignored)
         required: false
     environment:
-      # inside Docker the database host is the service name "db", not localhost
-      DATABASE_URL_ADMIN: postgresql://postgres:postgres@db:5432/larkspur
+      # inside Docker the database host is the service name "db", not localhost;
+      # the API only gets the read-only credential
       DATABASE_URL_RO: postgresql://analyst_ro:analyst_ro@db:5432/larkspur
     ports:
       - "8000:8000"

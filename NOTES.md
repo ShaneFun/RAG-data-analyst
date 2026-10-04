@@ -87,3 +87,25 @@ Get an **Anthropic API key** (console.anthropic.com) and set a small monthly spe
 - **Graceful degradation**: an agent should return its best partial answer, not nothing.
 - **Docker layer caching** (dependencies before code), baking models into images, non-root containers, `--proxy-headers` behind a load balancer.
 - **CI service containers** (a real Postgres in GitHub Actions); secrets only in platform dashboards.
+
+## Chapter 8 upgrades: advanced retrieval + streaming (2026-10-04)
+
+### What we built (191 tests, eval still 30/30)
+| Course idea | Built | Key files |
+|---|---|---|
+| Long document + header-based chunking (Ch2, Ch8) | 2,000-word data handbook → 20 chunks with heading paths | `data/knowledge/handbook.md`, `data/knowledge_entries.py` |
+| Parent-child retrieval (Ch3, Ch8) | search chunks, return the whole section, de-duplicate | `knowledge_sections` table, `app/knowledge/search.py` |
+| Hybrid search + RRF (Ch4, Ch8) | BM25 (rank-bm25) + pgvector, fused with RRF k=60 | `app/knowledge/search.py` |
+| Metadata filtering (Ch3, Ch8) | `kind` argument on the search tool | `app/agent/tools.py` |
+| Streaming (Ch8) | SSE endpoint + live step trace and answer | `app/main.py`, `app/agent/service.py`, `frontend/lib/api.ts` |
+| Retrieval evaluation (Ch6) | recall@5 / hit@1 / MRR for vector vs BM25 vs hybrid | `backend/evals/retrieval.py` |
+
+### Problems solved
+- A test expected the `products` table first for "which table has the supplier?", but the new handbook section saying "the supplier is stored on the products table" ranked first. Better retrieval, outdated test.
+- The eval dropped to 28/30: both "failures" were refund rates written as percentages (6.97 vs 0.0697). A scorer fix plus `--rescore` (re-scoring saved answers, free) brought it back to 30/30. Second time the metric was wrong, not the model.
+
+### Concepts learned
+- **Header-based chunking**, **contextual chunk headers**, **parent-child (small-to-big) retrieval**, **de-duplication**.
+- **BM25** (term frequency, inverse document frequency, length normalisation) vs **dense vectors**; **RRF** fuses by rank.
+- **recall@k, hit@1, MRR**; evaluate retrieval separately from generation.
+- **Server-Sent Events**, LangGraph stream modes (`updates`, `messages`, `values`), why errors mid-stream become events.

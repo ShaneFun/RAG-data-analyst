@@ -27,12 +27,22 @@ Evaluated on 30 held-out questions (none of them appear in the knowledge base), 
 | Must decline (personal data, deleting data, off-topic) | 3 / 3 |
 | **Total** | **30 / 30** |
 
-Median latency 3.1 s, whole evaluation $0.04. Scoring is **execution accuracy**: the gold SQL and the
+Median latency 3.0 s, whole evaluation $0.04. Scoring is **execution accuracy**: the gold SQL and the
 agent's SQL both run, and the results are compared, not the SQL text. The first run scored 24/30.
 All six failures turned out to be correct answers that my scorer rejected (top 5 instead of top 1,
 40.07% vs 0.4007, "2025-03" vs a date). I made the scorer lenient on presentation only and added
 tests for each case. A 30-question set is small and LLM output varies between runs, so this is a
 regression check, not a benchmark claim.
+
+**Retrieval on its own** (25 search queries with known correct entries, no LLM, free to run):
+
+| Search mode | recall@5 | hit@1 | MRR |
+|---|---|---|---|
+| Vector only | 100% | 88% | 0.923 |
+| BM25 keywords only | 100% | 64% | 0.798 |
+| **Hybrid (RRF)** | **100%** | **92%** | **0.953** |
+
+Every mode finds a useful entry in the top 5. Hybrid's gain is in ranking: the best entry comes first more often.
 
 ## Architecture
 
@@ -48,9 +58,13 @@ Next.js (Vercel) ──POST /ask──▶ FastAPI (Render, Docker) ──▶ Lan
 - **Data**: a synthetic shop (2,000 customers, 120 products, ~10k orders, 2024–2025, fixed seed) with
   three **planted trends** as ground truth: a holiday spike, a supplier with 3× refunds, and a
   March 2025 Electronics stock-out in the North.
-- **RAG over metadata, not rows**: 29 entries (table descriptions with real values, metric
-  definitions, 15 verified example queries) embedded locally with FastEmbed and searched with
-  pgvector. RAG tells the model *how* to query; SQL computes the exact numbers.
+- **RAG over metadata, not rows**: 29 curated entries (table descriptions with real values,
+  metric definitions, 15 verified example queries) plus a ~2,000-word **data handbook** of business
+  rules. The handbook is split by its Markdown headings (header-based chunking). Small chunks are
+  searched, but the LLM receives the whole parent section (parent-child retrieval). Search is
+  **hybrid**: BM25 keywords + FastEmbed/pgvector vectors, fused with Reciprocal Rank Fusion, with an
+  optional metadata filter by entry kind. RAG tells the model *how* to query; SQL computes the
+  exact numbers.
 - **Agent**: a LangGraph loop (agent → tools → agent) with two tools, max 8 tool calls.
   Database errors go back to the model so it can fix its query. At the limit, it must answer from
   what it found instead of giving up.
@@ -58,9 +72,11 @@ Next.js (Vercel) ──POST /ask──▶ FastAPI (Render, Docker) ──▶ Lan
   functions, LIMIT ≤ 200), READ ONLY transactions, a 5 s statement timeout, and a role with
   SELECT on five objects. Personal data is hidden behind a `customers_safe` view. The prompt is
   never the security boundary.
-- **API**: FastAPI + Pydantic, per-IP rate limit, CORS, LLM outage → 503.
+- **API**: FastAPI + Pydantic, per-IP rate limit, CORS, LLM outage → 503. `POST /ask/stream`
+  streams Server-Sent Events: each tool step as it finishes and the answer token by token
+  (first words after ~1 s instead of a blank wait).
 - **Frontend**: the answer next to its evidence (chart, table, SQL) and a numbered step trace
-  showing every search, failed query and fix.
+  that fills in live, showing every search, failed query and fix.
 
 Design reasoning for every choice is in [DECISIONS.md](DECISIONS.md).
 
@@ -79,8 +95,9 @@ cd frontend && cp .env.example .env.local && npm install && npm run dev   # http
 Or ask from the terminal: `cd backend && uv run python -m app.cli "Which supplier has the most refunds?"`
 
 ```bash
-cd backend && uv run pytest        # 170+ tests, no API key needed (agent tests use a scripted fake LLM)
+cd backend && uv run pytest        # 190+ tests, no API key needed (agent tests use a scripted fake LLM)
 cd backend && uv run python -m evals.run_eval   # the 30-question evaluation (calls DeepSeek, ~$0.04)
+cd backend && uv run python -m evals.retrieval  # search quality: vector vs BM25 vs hybrid (free)
 ```
 
 ## Deploy (free tiers)

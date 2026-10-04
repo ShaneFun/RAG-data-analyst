@@ -49,6 +49,20 @@ BAAI/bge-small-en-v1.5 via FastEmbed (384-d, runs locally, no API cost). Queries
 ### pgvector instead of a dedicated vector database
 29 vectors fit easily in the same Postgres as the data: no extra service, cost or sync problems. An exact scan takes about a millisecond, so no vector index is needed. I'd revisit at millions of vectors.
 
+### A long handbook, so chunking has a real job
+Real teams keep wiki pages next to their database. I added a ~2,000-word data handbook (business rules, refund policy, privacy, common query mistakes), written to match the generator and with a test that it never hints at the planted trends, so the evaluation stays honest.
+- **Header-based chunking** (LangChain `MarkdownHeaderTextSplitter`): one chunk per `###` subsection, 20 chunks. Each chunk's embedded text starts with its heading path ("Refunds > Refund policy") so it keeps its context. The curated entries are not chunked: each is already one self-contained topic.
+- **Parent-child retrieval**: small chunks match precisely; the LLM receives the whole `##` section (stored in `knowledge_sections`, not embedded) and results are de-duplicated by parent. Search small, read big.
+
+### Hybrid search with RRF
+Vector search understands meaning ("basket size" ≈ AOV); BM25 matches exact tokens (AOV, Brightline, COUNT DISTINCT). Each returns 20 candidates; **Reciprocal Rank Fusion** (score = Σ 1/(60 + rank)) merges them using ranks only, so the incompatible cosine and BM25 scores never need normalising. With ~50 entries, BM25 is rebuilt per query in Python (microseconds); at scale I'd move it into Postgres (full-text search or ParadeDB `pg_search`). An optional `kind` filter (metadata filtering) lets the agent search only examples, definitions or the handbook.
+
+### Measure retrieval separately
+A free retrieval eval (25 queries with known correct entries) compares the three modes: recall@5 is 100% for all, hit@1 88% → 92% and MRR 0.923 → 0.953 with hybrid. The honest conclusion: on a small knowledge base vector search already finds the right entries; hybrid mainly improves ranking, and it guards against exact-term misses as the knowledge base grows. No re-ranker: with top 5 of ~50 short entries it would add latency for no measurable gain.
+
+### Not added on purpose
+Separate query routing and rewriting: the agent already chooses its tool and writes its own search queries. GraphRAG: the data is relational, so foreign keys are the edges and SQL joins are the traversals.
+
 ## Agent
 
 ### LangGraph state graph with LangChain components
@@ -89,6 +103,9 @@ It turns "the demo looked good" into a number I can re-run after every prompt or
 
 ### One Docker image, three free services
 The API runs as a Docker image (python:3.12-slim + uv, locked dependencies, embedding model baked in so cold starts don't download 70 MB, non-root user). Render builds it from `render.yaml`; Postgres + pgvector is on Supabase (the same `data.setup_db` script builds it); the Next.js site is on Vercel. Secrets live only in the platforms' dashboards (`sync: false`), never in git. `--proxy-headers` lets the rate limiter see real client IPs behind Render's proxy.
+
+### Streaming
+`POST /ask/stream` returns Server-Sent Events from LangGraph's stream modes: `updates` gives a `step` event after each tool call, `messages` gives the LLM's tokens, and `values` keeps the full state for the final `result` event (identical to `/ask`). Text the model writes before a tool call is thinking out loud, so the client clears its draft on every step. Errors after the response has started can't change the HTTP status, so they become an `error` event. Both endpoints share one rate-limit budget. Plain `fetch` + a stream reader instead of `EventSource`, because `EventSource` only supports GET.
 
 ### CI
 GitHub Actions runs on every push: ruff + 160+ pytest tests against a real pgvector service container (no LLM key needed because agent tests use a fake), frontend lint + production build, and a Docker build. The paid LLM eval runs manually, not in CI.

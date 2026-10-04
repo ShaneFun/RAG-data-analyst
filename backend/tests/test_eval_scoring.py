@@ -77,3 +77,10 @@ def test_time_label_columns_may_be_formatted_differently():
     assert results_match(gold, [["2025-01", 49], ["2025-02", 72], ["2025-03", 8]])
     assert results_match(gold, [[1, 49], [2, 72], [3, 8]])
     assert not results_match(gold, [["2025-01", 49], ["2025-02", 72], ["2025-03", 9]])
+
+
+def test_rate_columns_may_be_written_as_percentages():
+    gold = [["South", 0.0627], ["East", 0.0697]]
+    pred = [["East", 4775, 333, 6.97], ["South", 5183, 325, 6.27]]
+    assert results_match(gold, pred)
+    assert not results_match(gold, [["East", 4775, 333, 7.5], ["South", 5183, 325, 6.27]])

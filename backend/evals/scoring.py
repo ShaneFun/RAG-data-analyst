@@ -44,8 +44,12 @@ def _sort_key(value):
 
 
 def _column_equal(gold: list, pred: list) -> bool:
-    return all(_same(g, p) for g, p in zip(sorted(gold, key=_sort_key),
-                                           sorted(pred, key=_sort_key), strict=True))
+    gold, pred = sorted(gold, key=_sort_key), sorted(pred, key=_sort_key)
+    if all(_same(g, p) for g, p in zip(gold, pred, strict=True)):
+        return True
+    # a rate column written as a percentage (0.0697 vs 6.97)
+    return all(isinstance(g, float) and isinstance(p, float) and _same(g * 100, p)
+               for g, p in zip(gold, pred, strict=True))
 
 
 def _is_time_label(column: list) -> bool:
@@ -83,7 +87,7 @@ def results_match(gold_rows: list[list], pred_rows: list[list]) -> bool:
 
     Lenient about presentation, strict about content:
     - row and column order, extra columns, rounding (0.5%) don't matter;
-    - a single gold value may appear anywhere in the result, also as a percentage;
+    - a single gold value may appear anywhere in the result; rates may be percentages;
     - a top-N answer may list extra rows after the gold rows (e.g. top 5 for "the top 1");
     - time-label columns may be formatted differently.
     """

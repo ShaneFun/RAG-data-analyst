@@ -3,6 +3,7 @@
     cd backend
     uv run python -m evals.run_eval              # all 30 questions
     uv run python -m evals.run_eval --only t1,t3 # a subset
+    uv run python -m evals.run_eval --rescore    # re-score the saved run (free, no LLM calls)
 
 Writes evals/results/latest.json and prints a summary table by tag.
 """
@@ -29,7 +30,12 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # Windows consoles default to cp1252
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="comma-separated question ids")
+    parser.add_argument("--rescore", action="store_true",
+                        help="re-score the saved results after a scoring change")
     args = parser.parse_args()
+    if args.rescore:
+        rescore()
+        return
 
     items = load_questions()
     if args.only:
@@ -42,12 +48,7 @@ def main() -> None:
     records = []
     try:
         for item in items:
-            gold_rows = None
-            if item.get("gold_sql"):
-                gold = run_select(gold_pool, item["gold_sql"])
-                if not gold.ok:
-                    raise SystemExit(f"{item['id']}: gold SQL failed: {gold.error}")
-                gold_rows = gold.rows
+            gold_rows = gold_rows_for(gold_pool, item)
             try:
                 result = runtime.ask(item["question"])
             except Exception as e:  # noqa: BLE001 - one failed call should not stop the run
@@ -78,6 +79,38 @@ def main() -> None:
                    encoding="utf-8")
     print_summary(summary)
     print(f"\nSaved {out}")
+
+
+def gold_rows_for(pool, item: dict) -> list[list] | None:
+    if not item.get("gold_sql"):
+        return None
+    gold = run_select(pool, item["gold_sql"])
+    if not gold.ok:
+        raise SystemExit(f"{item['id']}: gold SQL failed: {gold.error}")
+    return gold.rows
+
+
+def rescore() -> None:
+    """Apply the current scoring rules to the saved answers: no new LLM calls."""
+    out = RESULTS_DIR / "latest.json"
+    saved = json.loads(out.read_text(encoding="utf-8"))
+    items = {item["id"]: item for item in load_questions()}
+    pool = make_pool(Settings().database_url_ro, max_size=1)
+    try:
+        for r in saved["records"]:
+            if "error" in r:
+                continue
+            item = items[r["id"]]
+            score = score_item(item, r["answer"], len(r["sql"]), r["rows"],
+                               gold_rows_for(pool, item))
+            if score["passed"] != r["passed"]:
+                print(f"{r['id']:4} {'FAIL -> PASS' if score['passed'] else 'PASS -> FAIL'}")
+            r.update(score)
+    finally:
+        pool.close()
+    saved["summary"] = summarise(saved["records"])
+    out.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    print_summary(saved["summary"])
 
 
 def summarise(records: list[dict]) -> dict:

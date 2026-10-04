@@ -41,3 +41,26 @@ Defence in depth & availability · `customers_safe` = data minimisation · test 
 
 ### Next: Day 2
 Get an **Anthropic API key** (console.anthropic.com) and set a small monthly spend limit. Then: Claude + tools → LangGraph agent → FastAPI `/ask`.
+
+## Day 2 — the agent + API (2026-10-04)
+
+### What we built (130 tests passing)
+| Step | Built | Key files |
+|---|---|---|
+| ⑨ | DeepSeek chat model, the two tools, system prompt | `app/agent/llm.py`, `tools.py`, `prompts.py` |
+| ⑩ | LangGraph agent loop: self-correction, 8-step limit, step log, token/cost tracking, chart hints | `app/agent/graph.py`, `service.py`, `app/charts.py` |
+| ⑫–⑬ | FastAPI `/ask` + `/health`, Pydantic schemas, rate limit, CORS, 503 on LLM outage, CLI | `app/main.py`, `schemas.py`, `wiring.py`, `cli.py` |
+
+### Try the real agent (needs your DeepSeek key)
+1. Copy `backend/.env.example` to `backend/.env` and set `DEEPSEEK_API_KEY=...` (never commit `.env`).
+2. From `backend/`: `uv run python -m app.cli "Why did North sales drop in March 2025?"`
+3. Or start the API: `uv run uvicorn app.main:app --reload`, then open http://localhost:8000/docs and try `POST /ask`.
+
+### Concepts learned
+- **Agent vs pipeline**: the LLM decides which tool to call next, in a loop, until it can answer.
+- **Tool calling**: the model returns `tool_calls`; our code runs them and sends `ToolMessage`s back. The model never executes anything.
+- **LangGraph**: state (messages, step count, log), nodes (agent, tools), a conditional edge (more tools or END).
+- **Content + artifact tools**: short text for the LLM, full data for the API.
+- **Self-correction** via error feedback; **step limits** to stop loops.
+- **Fakes for testing LLM code**: scripted responses make agent tests free and deterministic.
+- **FastAPI + Pydantic** validation, dependency injection via `create_app(ask=...)`, **rate limiting**, **CORS**, mapping upstream failures to **503**.

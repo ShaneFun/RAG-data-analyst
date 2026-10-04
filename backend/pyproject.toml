@@ -12,10 +12,20 @@ dependencies = [
     "pydantic-settings>=2.15,<3",   # read settings from environment variables / .env
     "pyyaml>=6,<7",                 # read the knowledge-base YAML files
     "numpy>=2,<3",                  # vectors are numpy arrays
+    "langchain-deepseek>=1.1.1",
+    "langgraph>=1.2.12",
+    "langchain-core>=1.6.6",
+    "fastapi>=0.142.2",
+    "uvicorn[standard]>=0.54.0",
+    "slowapi>=0.1.10",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6"]    # testing + linting (not needed in production)
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8",
+    "ruff>=0.6",
+]    # testing + linting (not needed in production)
 
 [build-system]
 requires = ["hatchling"]

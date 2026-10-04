@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # admin connection: setup scripts only, never given to the AI
+    # admin connection: setup scripts + knowledge search, never given to the AI
     database_url_admin: str = "postgresql://postgres:postgres@localhost:5432/larkspur"
     # read-only connection: used to run the AI's SQL
     database_url_ro: str = "postgresql://analyst_ro:analyst_ro@localhost:5432/larkspur"
@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     sql_timeout: str = "5s"
     max_rows: int = 200
+
+    # LLM (DeepSeek, via LangChain's ChatDeepSeek)
+    deepseek_api_key: str = ""
+    llm_model: str = "deepseek-chat"
+    llm_timeout_s: float = 60.0
+    # USD per 1M tokens, used only to estimate cost per question (check DeepSeek's pricing page)
+    llm_input_price_per_m: float = 0.28
+    llm_output_price_per_m: float = 0.42
+
+    # Agent + API
+    max_agent_steps: int = 8
+    rate_limit: str = "10/hour"
+    allowed_origins: str = "http://localhost:3000"
 
 
 def get_settings() -> Settings:

@@ -48,3 +48,31 @@ BAAI/bge-small-en-v1.5 via FastEmbed (384-d, runs locally, no API cost). Queries
 
 ### pgvector instead of a dedicated vector database
 29 vectors fit easily in the same Postgres as the data: no extra service, cost or sync problems. An exact scan takes about a millisecond, so no vector index is needed. I'd revisit at millions of vectors.
+
+## Agent
+
+### LangGraph state graph with LangChain components
+The agent is a small LangGraph graph: `agent` (the LLM with two tools bound) → `tools` → back to `agent`, ending when the LLM answers or after **8 tool calls**. LangChain provides the model wrapper and the `@tool` definitions; LangGraph makes the loop, the stop condition and the state explicit and testable. I deliberately did **not** use LangChain's prebuilt SQL agent: it would run SQL its own way and bypass my validator and read-only role.
+
+### Two tools only
+`search_knowledge(query)` (RAG over the knowledge base) and `run_sql(sql)` (validated, read-only, ≤200 rows). Both return **text for the LLM and a structured artifact for the API** (`response_format="content_and_artifact"`): the LLM sees at most 50 rows (keeps prompts small), while the website gets up to 200 rows plus the SQL. Tool crashes and unknown tools become error messages instead of crashing the request.
+
+### Self-correction
+Database errors come back to the LLM as the tool result, so it reads e.g. "column category does not exist" and rewrites the query (execution-guided correction). The step limit stops endless loops and returns an honest "couldn't finish" message.
+
+### DeepSeek as the LLM
+`deepseek-chat` through LangChain's `ChatDeepSeek`: strong at SQL and tool calling, and very cheap (the whole evaluation costs cents). Temperature 0 for deterministic SQL, one automatic retry, 60 s timeout. Because the model is behind LangChain's chat-model interface, swapping providers is a one-file change (`app/agent/llm.py`).
+
+### Prompt design
+The system prompt lists the tools, the five readable tables, today's date and a short procedure: search knowledge first, aggregate in SQL, fix errors, break "why" questions down by dimension, only state numbers from query results, and decline off-topic, destructive or personal-data requests. Security still never depends on the prompt.
+
+### Testing without paying for API calls
+Graph tests use a scripted fake chat model, so the loop, self-correction, step limit and refusals are tested deterministically and for free. Real-model quality is measured separately by the evaluation (Day 3).
+
+## API
+
+### FastAPI
+`POST /ask` and `GET /health`, with Pydantic request/response models (question 1–500 characters, whitespace stripped). The endpoint is a plain `def`, so FastAPI runs the blocking agent in its thread pool. `create_app(settings, ask)` takes the agent as a dependency, so API tests use a fake.
+
+### Protecting the public demo
+Per-IP rate limit (slowapi, 10 questions/hour by default), CORS restricted to the website's origin, DeepSeek outages mapped to HTTP 503 with a friendly message, and the server refuses to start without an API key. Plus a spend limit on the DeepSeek account.

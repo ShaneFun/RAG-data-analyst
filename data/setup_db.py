@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.knowledge.embed import Embedder
 from data.db_setup import apply_schema, reset_schema
 from data.generate import generate
-from data.knowledge_entries import load_entries
+from data.knowledge_entries import load_entries, load_sections
 from data.load_data import load_dataset
 from data.load_knowledge import load_knowledge
 from data.roles import setup_roles
@@ -23,7 +23,7 @@ def main() -> None:
         counts = load_dataset(conn, generate(seed=42))
         setup_roles(conn, settings.analyst_ro_password, settings.sql_timeout)
         counts["knowledge"] = load_knowledge(conn, load_entries(),
-                                             Embedder(settings.embedding_model))
+                                             Embedder(settings.embedding_model), load_sections())
     print("Loaded:", counts)
 
 

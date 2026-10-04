@@ -33,6 +33,14 @@ def test_search_knowledge_returns_text_and_titles(tools):
     assert msg.artifact[0]["title"] == "Average order value (AOV)"
 
 
+def test_search_knowledge_kind_filter_is_exposed_to_the_llm(tools):
+    schema = tools["search_knowledge"].args
+    assert set(schema["kind"]["anyOf"][0]["enum"]) == {"dictionary", "glossary", "example",
+                                                       "handbook"}
+    msg = _call(tools["search_knowledge"], query="refunds", kind="handbook")
+    assert msg.artifact and {hit["kind"] for hit in msg.artifact} == {"handbook"}
+
+
 def test_run_sql_success(tools):
     msg = _call(tools["run_sql"], sql="SELECT region, COUNT(*) AS n FROM orders GROUP BY region")
     assert json.loads(msg.content)["ok"] is True

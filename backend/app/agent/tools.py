@@ -6,6 +6,7 @@ from langchain_core.tools import BaseTool, tool
 from psycopg_pool import ConnectionPool
 
 from app.knowledge.embed import Embedder
+from app.knowledge.search import Kind
 from app.knowledge.search import search_knowledge as _search
 from app.sql.executor import run_select
 
@@ -23,11 +24,13 @@ class ToolContext:
 
 def make_tools(ctx: ToolContext) -> list[BaseTool]:
     @tool(response_format="content_and_artifact")
-    def search_knowledge(query: str) -> tuple[str, list[dict]]:
-        """Search the shop's knowledge base: table descriptions with column values, business
-        definitions (revenue, refund rate, AOV...) and example SQL. Use before writing SQL."""
+    def search_knowledge(query: str, kind: Kind | None = None) -> tuple[str, list[dict]]:
+        """Search the shop's knowledge base (hybrid keyword + semantic search). Use before
+        writing SQL. Optional kind narrows the search: 'dictionary' (tables, columns, values),
+        'glossary' (metric definitions: revenue, refund rate, AOV...), 'example' (verified
+        question -> SQL pairs), 'handbook' (business rules, policies, common mistakes)."""
         with ctx.admin_pool.connection() as conn:
-            hits = _search(conn, ctx.embedder, query, k=5)
+            hits = _search(conn, ctx.embedder, query, k=5, kind=kind)
         if not hits:
             return "No knowledge found for that query.", []
         text = "\n\n".join(f"[{h.kind}] {h.title}\n{h.content}" for h in hits)

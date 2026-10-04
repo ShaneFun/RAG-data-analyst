@@ -1,0 +1,100 @@
+- question: How many completed orders were there in 2024?
+  sql: |
+    SELECT COUNT(*) AS completed_orders
+    FROM orders
+    WHERE status = 'completed' AND order_date >= '2024-01-01' AND order_date < '2025-01-01';
+- question: What is gross revenue by region?
+  sql: |
+    SELECT o.region, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS gross_revenue
+    FROM orders o JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.status = 'completed'
+    GROUP BY o.region ORDER BY gross_revenue DESC;
+- question: What are the top 5 products by units sold?
+  sql: |
+    SELECT p.name, SUM(oi.quantity) AS units_sold
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN products p ON p.id = oi.product_id
+    WHERE o.status = 'completed'
+    GROUP BY p.name ORDER BY units_sold DESC LIMIT 5;
+- question: How many completed orders were there each month in 2025?
+  sql: |
+    SELECT DATE_TRUNC('month', order_date)::date AS month, COUNT(*) AS orders
+    FROM orders
+    WHERE status = 'completed' AND order_date >= '2025-01-01' AND order_date < '2026-01-01'
+    GROUP BY 1 ORDER BY 1;
+- question: What is the average order value by channel?
+  sql: |
+    SELECT o.channel,
+           ROUND(SUM(oi.quantity * oi.unit_price) / COUNT(DISTINCT o.id), 2) AS aov
+    FROM orders o JOIN order_items oi ON oi.order_id = o.id
+    WHERE o.status = 'completed'
+    GROUP BY o.channel;
+- question: What is the refund rate by product category?
+  sql: |
+    SELECT p.category,
+           ROUND(COUNT(r.id)::numeric / COUNT(oi.id), 4) AS refund_rate
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN products p ON p.id = oi.product_id
+    LEFT JOIN refunds r ON r.order_item_id = oi.id
+    WHERE o.status = 'completed'
+    GROUP BY p.category ORDER BY refund_rate DESC;
+- question: How many customers signed up through each channel?
+  sql: |
+    SELECT signup_channel, COUNT(*) AS customers
+    FROM customers_safe
+    GROUP BY signup_channel;
+- question: What is gross revenue by category in the West region?
+  sql: |
+    SELECT p.category, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS gross_revenue
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    JOIN products p ON p.id = oi.product_id
+    WHERE o.status = 'completed' AND o.region = 'West'
+    GROUP BY p.category ORDER BY gross_revenue DESC;
+- question: What is gross revenue by supplier?
+  sql: |
+    SELECT p.supplier, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS gross_revenue
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    JOIN products p ON p.id = oi.product_id
+    WHERE o.status = 'completed'
+    GROUP BY p.supplier ORDER BY gross_revenue DESC;
+- question: What was the cancellation rate each month in 2024?
+  sql: |
+    SELECT DATE_TRUNC('month', order_date)::date AS month,
+           ROUND(AVG(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 4) AS cancellation_rate
+    FROM orders
+    WHERE order_date >= '2024-01-01' AND order_date < '2025-01-01'
+    GROUP BY 1 ORDER BY 1;
+- question: What was net revenue in Q1 2025?
+  sql: |
+    SELECT ROUND(SUM(oi.quantity * oi.unit_price) - COALESCE(SUM(r.amount), 0), 2) AS net_revenue
+    FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    LEFT JOIN refunds r ON r.order_item_id = oi.id
+    WHERE o.status = 'completed' AND o.order_date >= '2025-01-01' AND o.order_date < '2025-04-01';
+- question: What are the most common refund reasons?
+  sql: |
+    SELECT reason, COUNT(*) AS refunds
+    FROM refunds
+    GROUP BY reason ORDER BY refunds DESC;
+- question: How many completed orders came from each region and channel?
+  sql: |
+    SELECT region, channel, COUNT(*) AS orders
+    FROM orders
+    WHERE status = 'completed'
+    GROUP BY region, channel ORDER BY region, channel;
+- question: What is the average quantity per order line by category?
+  sql: |
+    SELECT p.category, ROUND(AVG(oi.quantity), 2) AS avg_quantity
+    FROM order_items oi JOIN products p ON p.id = oi.product_id
+    GROUP BY p.category ORDER BY avg_quantity DESC;
+- question: How many active customers were there in each quarter of 2024?
+  sql: |
+    SELECT DATE_TRUNC('quarter', order_date)::date AS quarter,
+           COUNT(DISTINCT customer_id) AS active_customers
+    FROM orders
+    WHERE status = 'completed' AND order_date >= '2024-01-01' AND order_date < '2025-01-01'
+    GROUP BY 1 ORDER BY 1;

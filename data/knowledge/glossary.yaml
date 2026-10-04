@@ -1,0 +1,34 @@
+- title: Gross revenue (sales)
+  content: |
+    Gross revenue (also "sales" or "revenue") = SUM(order_items.quantity * order_items.unit_price)
+    over order items whose order has status = 'completed'.
+- title: Net revenue
+  content: |
+    Net revenue = gross revenue minus refunds: SUM(order_items.quantity * order_items.unit_price)
+    for completed orders, minus SUM(refunds.amount) for refunds on those order items.
+- title: Average order value (AOV)
+  content: |
+    Average order value (AOV) = gross revenue / COUNT(DISTINCT orders.id), using only
+    orders with status = 'completed'.
+- title: Refund rate
+  content: |
+    Refund rate = number of refunded order items / number of order items in completed orders.
+    LEFT JOIN refunds ON refunds.order_item_id = order_items.id and count refunds.id.
+- title: Cancellation rate
+  content: |
+    Cancellation rate = orders with status = 'cancelled' / all orders.
+- title: Order count
+  content: |
+    Order count = COUNT(DISTINCT orders.id) with status = 'completed', unless the question
+    explicitly asks about cancelled or all orders.
+- title: Units sold
+  content: |
+    Units sold = SUM(order_items.quantity) over items in completed orders.
+- title: Active customer
+  content: |
+    Active customer (for a period) = a customer with at least one completed order in that period:
+    COUNT(DISTINCT orders.customer_id).
+- title: Monthly trend
+  content: |
+    For trends over time group by DATE_TRUNC('month', orders.order_date) and order by that month.
+    Quarters: DATE_TRUNC('quarter', orders.order_date).

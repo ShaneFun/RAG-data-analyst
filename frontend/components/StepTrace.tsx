@@ -16,8 +16,16 @@ function describe(step: Step): { title: string; detail: string } {
   return { title: `Called ${step.tool}`, detail: step.summary };
 }
 
-export default function StepTrace({ steps, stoppedEarly }: { steps: Step[]; stoppedEarly: boolean }) {
-  if (steps.length === 0) return null;
+export default function StepTrace({
+  steps,
+  stoppedEarly,
+  working = false,
+}: {
+  steps: Step[];
+  stoppedEarly: boolean;
+  working?: boolean;
+}) {
+  if (steps.length === 0 && !working) return null;
   return (
     <div className="mt-8">
       <h2 className="text-sm font-medium text-night-soft">How the analyst got here</h2>
@@ -44,19 +52,28 @@ export default function StepTrace({ steps, stoppedEarly }: { steps: Step[]; stop
             </li>
           );
         })}
-        <li className="flex gap-4">
-          <span
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-              stoppedEarly ? "bg-rust-soft text-rust" : "bg-petal text-white"
-            }`}
-            aria-hidden
-          >
-            {stoppedEarly ? "!" : "✓"}
-          </span>
-          <p className="pt-0.5 font-medium">
-            {stoppedEarly ? "Stopped at the step limit" : "Wrote the answer"}
-          </p>
-        </li>
+        {working ? (
+          <li className="flex gap-4">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center" aria-hidden>
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-petal" />
+            </span>
+            <p className="pt-0.5 text-night-soft">Working…</p>
+          </li>
+        ) : (
+          <li className="flex gap-4">
+            <span
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                stoppedEarly ? "bg-rust-soft text-rust" : "bg-petal text-white"
+              }`}
+              aria-hidden
+            >
+              {stoppedEarly ? "!" : "✓"}
+            </span>
+            <p className="pt-0.5 font-medium">
+              {stoppedEarly ? "Answered at the step limit, from what it found" : "Wrote the answer"}
+            </p>
+          </li>
+        )}
       </ol>
     </div>
   );

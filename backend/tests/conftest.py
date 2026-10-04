@@ -7,7 +7,7 @@ from app.config import Settings
 from app.knowledge.embed import Embedder
 from data.db_setup import apply_schema, reset_schema
 from data.generate import generate
-from data.knowledge_entries import load_entries
+from data.knowledge_entries import load_entries, load_sections
 from data.load_data import load_dataset
 from data.load_knowledge import load_knowledge
 from data.roles import setup_roles
@@ -43,7 +43,7 @@ def embedder():
 
 @pytest.fixture(scope="session")
 def knowledge_db(loaded_db, embedder):
-    """loaded_db + the 29 knowledge entries embedded into pgvector."""
+    """loaded_db + the knowledge base (29 curated entries + 20 handbook chunks) in pgvector."""
     with psycopg.connect(loaded_db["admin_url"], autocommit=True) as conn:
-        load_knowledge(conn, load_entries(), embedder)
+        load_knowledge(conn, load_entries(), embedder, load_sections())
     return loaded_db

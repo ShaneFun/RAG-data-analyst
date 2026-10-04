@@ -45,13 +45,22 @@ CREATE TABLE refunds (
     amount        numeric(10,2) NOT NULL
 );
 
+-- Parent sections of the long handbook document (returned to the LLM in full, never embedded).
+CREATE TABLE knowledge_sections (
+    id      serial PRIMARY KEY,
+    title   text   NOT NULL UNIQUE,
+    content text   NOT NULL
+);
+
 -- RAG knowledge base: descriptions of the data (NOT the data itself) + their embeddings.
+-- Handbook rows are small child chunks pointing to their parent section (parent-child retrieval).
 CREATE TABLE knowledge (
-    id        serial PRIMARY KEY,
-    kind      text   NOT NULL CHECK (kind IN ('dictionary', 'glossary', 'example')),
-    title     text   NOT NULL,
-    content   text   NOT NULL,
-    embedding vector(384) NOT NULL                         -- 384 numbers from the bge-small model
+    id         serial PRIMARY KEY,
+    kind       text   NOT NULL CHECK (kind IN ('dictionary', 'glossary', 'example', 'handbook')),
+    title      text   NOT NULL,
+    content    text   NOT NULL,
+    section_id integer REFERENCES knowledge_sections(id),  -- only for kind = 'handbook'
+    embedding  vector(384) NOT NULL                        -- 384 numbers from the bge-small model
 );
 
 -- Indexes on the columns the agent filters and joins on.

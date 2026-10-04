@@ -18,6 +18,8 @@ dependencies = [
     "fastapi>=0.142.2",
     "uvicorn[standard]>=0.54.0",
     "slowapi>=0.1.10",
+    "rank-bm25>=0.2.2",             # BM25 keyword search (hybrid retrieval)
+    "langchain-text-splitters>=1.1.3",  # split the handbook by its Markdown headings
 ]
 
 [dependency-groups]

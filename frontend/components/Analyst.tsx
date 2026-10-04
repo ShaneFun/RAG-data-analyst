@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import { ask, AskError, type AskResponse } from "@/lib/api";
+import { askStream, AskError, type AskResponse, type Step } from "@/lib/api";
 import Answer from "./Answer";
 import ResultChart from "./ResultChart";
 import ResultTable from "./ResultTable";
@@ -21,6 +21,8 @@ export default function Analyst() {
   const [result, setResult] = useState<AskResponse | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [liveSteps, setLiveSteps] = useState<Step[]>([]);
+  const [draft, setDraft] = useState("");
 
   async function submit(text: string) {
     const q = text.trim();
@@ -30,8 +32,18 @@ export default function Analyst() {
     setLoading(true);
     setError("");
     setResult(null);
+    setLiveSteps([]);
+    setDraft("");
     try {
-      setResult(await ask(q));
+      const final = await askStream(q, (event) => {
+        if (event.type === "step") {
+          setLiveSteps((steps) => [...steps, event.step]);
+          setDraft(""); // text written before a tool call was thinking out loud, not the answer
+        } else if (event.type === "token") {
+          setDraft((text) => text + event.text);
+        }
+      });
+      setResult(final);
     } catch (e) {
       setError(e instanceof AskError ? e.message : "Something went wrong. Try again.");
     } finally {
@@ -100,9 +112,18 @@ export default function Analyst() {
       )}
 
       {loading && (
-        <p className="mt-10 text-night-soft" aria-live="polite">
-          Reading the database guide and running queries. This usually takes 10 to 30 seconds.
-        </p>
+        <section className="mt-10 max-w-2xl" aria-live="polite">
+          <p className="text-sm text-night-soft">You asked</p>
+          <p className="mt-1 font-medium">{asked}</p>
+          {draft ? (
+            <Answer text={draft} />
+          ) : (
+            <p className="mt-6 text-night-soft">
+              Working on it. Each step appears below as the analyst takes it.
+            </p>
+          )}
+          <StepTrace steps={liveSteps} stoppedEarly={false} working />
+        </section>
       )}
 
       {result && (

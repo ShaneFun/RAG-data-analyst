@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 
 import { ask, AskError, type AskResponse } from "@/lib/api";
+import Answer from "./Answer";
 import ResultChart from "./ResultChart";
 import ResultTable from "./ResultTable";
 import StepTrace from "./StepTrace";
@@ -109,7 +110,7 @@ export default function Analyst() {
           <div>
             <p className="text-sm text-night-soft">You asked</p>
             <p className="mt-1 font-medium">{asked}</p>
-            <div className="mt-6 whitespace-pre-line text-lg leading-relaxed">{result.answer}</div>
+            <Answer text={result.answer} />
             <p className="mt-4 text-sm text-night-soft">
               {(result.latency_ms / 1000).toFixed(1)} s ·{" "}
               {(result.usage.input_tokens + result.usage.output_tokens).toLocaleString()} tokens · $

@@ -48,21 +48,54 @@ def _column_equal(gold: list, pred: list) -> bool:
                                            sorted(pred, key=_sort_key), strict=True))
 
 
-def results_match(gold_rows: list[list], pred_rows: list[list]) -> bool:
-    """True if every gold column appears (as a multiset of values) among the predicted columns."""
+def _is_time_label(column: list) -> bool:
+    return all(isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v) for v in column)
+
+
+def _columns(rows: list[list]) -> list[list]:
+    return [list(col) for col in zip(*rows, strict=True)]
+
+
+def _table_match(gold_rows: list[list], pred_rows: list[list]) -> bool:
     if len(gold_rows) != len(pred_rows):
         return False
-    if not gold_rows:
-        return True
-    gold_cols = [list(col) for col in zip(*[[_norm(v) for v in r] for r in gold_rows], strict=True)]
-    pred_cols = [list(col) for col in zip(*[[_norm(v) for v in r] for r in pred_rows], strict=True)]
+    gold_cols, pred_cols = _columns(gold_rows), _columns(pred_rows)
+    # time labels ("2025-03-01" vs "2025-03" vs quarter 1) can be written many ways: the
+    # row count and the measure columns still have to match
+    measures = [c for c in gold_cols if not _is_time_label(c)] or gold_cols
     unused = list(range(len(pred_cols)))
-    for gold in gold_cols:
+    for gold in measures:
         match = next((i for i in unused if _column_equal(gold, pred_cols[i])), None)
         if match is None:
             return False
         unused.remove(match)
     return True
+
+
+def _same_or_percent(gold, value) -> bool:
+    if isinstance(gold, float) and isinstance(value, float):
+        return _same(gold, value) or _same(gold * 100, value)
+    return gold == value
+
+
+def results_match(gold_rows: list[list], pred_rows: list[list]) -> bool:
+    """Is the gold answer contained in the agent's last result?
+
+    Lenient about presentation, strict about content:
+    - row and column order, extra columns, rounding (0.5%) don't matter;
+    - a single gold value may appear anywhere in the result, also as a percentage;
+    - a top-N answer may list extra rows after the gold rows (e.g. top 5 for "the top 1");
+    - time-label columns may be formatted differently.
+    """
+    if not gold_rows:
+        return not pred_rows
+    gold = [[_norm(v) for v in row] for row in gold_rows]
+    pred = [[_norm(v) for v in row] for row in pred_rows]
+    if len(gold) == 1 and len(gold[0]) == 1:
+        return any(_same_or_percent(gold[0][0], v) for row in pred for v in row)
+    if _table_match(gold, pred):
+        return True
+    return len(pred) > len(gold) and _table_match(gold, pred[:len(gold)])
 
 
 def keywords_ok(answer: str, groups: list[list[str]]) -> bool:

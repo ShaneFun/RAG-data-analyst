@@ -59,6 +59,7 @@ def main() -> None:
             records.append({
                 "id": item["id"], "tags": item["tags"], "question": item["question"],
                 **score, "answer": result.answer, "sql": result.sql,
+                "columns": result.columns, "rows": result.rows,
                 "self_corrections": sum(1 for s in result.steps
                                         if s["tool"] == "run_sql" and not s["ok"]),
                 "tool_calls": len(result.steps), "latency_ms": result.latency_ms,

@@ -64,3 +64,26 @@ Get an **Anthropic API key** (console.anthropic.com) and set a small monthly spe
 - **Self-correction** via error feedback; **step limits** to stop loops.
 - **Fakes for testing LLM code**: scripted responses make agent tests free and deterministic.
 - **FastAPI + Pydantic** validation, dependency injection via `create_app(ask=...)`, **rate limiting**, **CORS**, mapping upstream failures to **503**.
+
+## Day 3: frontend, evaluation, shipping (2026-10-04)
+
+### What we built
+| Built | Key files |
+|---|---|
+| Next.js site: question box, example questions, answer, chart, table, SQL, step trace | `frontend/components/*`, `frontend/lib/api.ts` |
+| 30-question evaluation with execution-accuracy scoring: **30/30**, $0.04 per run | `backend/evals/*` |
+| Forced final answer at the tool limit | `app/agent/graph.py` |
+| Dockerfile (model baked in, non-root), compose `api` service | `backend/Dockerfile`, `docker-compose.yml` |
+| CI (backend, frontend, Docker), Render blueprint, deploy guide | `.github/workflows/ci.yml`, `render.yaml`, `README.md` |
+
+### Problems solved (good interview stories)
+- **Agent gave up with the answer in hand**: a "why" question used all 8 tool calls and returned "couldn't finish" even though step 8 had found the cause. Fix: at the limit, one more LLM call with `tool_choice="none"` that must answer from the evidence.
+- **The eval was wrong, not the agent**: first run 24/30. All 6 failures were correct answers in a different shape (top 5 vs top 1, 40.07% vs 0.4007, "2025-03" vs a date). Lesson: read failures before trusting a metric. I made scoring lenient on presentation and strict on content, with a test per case.
+- **Running the tests broke the app**: Postgres roles are server-wide, so the test fixture changed `analyst_ro`'s password for the dev database too. Fix: tests use the same password from settings.
+- **Windows console crash** on the → character: `sys.stdout.reconfigure(encoding="utf-8")`.
+
+### Concepts learned
+- **Execution accuracy** vs exact-match SQL; **false negatives** in evaluation; **eval as a regression test** for prompts/models.
+- **Graceful degradation**: an agent should return its best partial answer, not nothing.
+- **Docker layer caching** (dependencies before code), baking models into images, non-root containers, `--proxy-headers` behind a load balancer.
+- **CI service containers** (a real Postgres in GitHub Actions); secrets only in platform dashboards.

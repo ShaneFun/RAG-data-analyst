@@ -1,0 +1,34 @@
+- title: orders
+  content: |
+    Table orders: one row per checkout at Larkspur Market.
+    Columns: id (integer, primary key); customer_id (integer, joins customers_safe.id);
+    order_date (date, from 2024-01-01 to 2025-12-31); channel (text: 'web' or 'app');
+    region (text: 'North', 'South', 'East', 'West' - the customer's region);
+    status (text: 'completed' or 'cancelled'; sales and revenue only count 'completed' orders).
+    Join order lines with order_items.order_id = orders.id.
+- title: order_items
+  content: |
+    Table order_items: one row per product line inside an order.
+    Columns: id (integer, primary key); order_id (integer, joins orders.id);
+    product_id (integer, joins products.id); quantity (integer, units bought);
+    unit_price (numeric, price paid per unit at order time).
+    Line revenue = quantity * unit_price. Units sold = SUM(quantity).
+- title: products
+  content: |
+    Table products: the product catalogue (120 products).
+    Columns: id (integer, primary key); name (text, e.g. 'Electronics Item 01');
+    category (text: 'Electronics', 'Home', 'Fashion', 'Beauty', 'Sports', 'Grocery');
+    supplier (text: 'Brightline Goods', 'Copperleaf Trading', 'Harbor & Pine Co',
+    'Meridian Wholesale', 'Oakridge Partners', 'Silverstream Supply', 'Tidewater Imports',
+    'Willow Lane Makers'); unit_price (numeric, current list price).
+- title: refunds
+  content: |
+    Table refunds: one row per refunded order line (an order item is refunded at most once).
+    Columns: id (integer, primary key); order_item_id (integer, joins order_items.id);
+    refund_date (date); reason (text: 'damaged', 'wrong item', 'not as described',
+    'changed mind', 'late delivery'); amount (numeric, money returned to the customer).
+- title: customers_safe
+  content: |
+    View customers_safe: customers without personal data (names and emails are not available).
+    Columns: id (integer, primary key, joins orders.customer_id); region (text: 'North',
+    'South', 'East', 'West'); signup_date (date, during 2023); signup_channel (text: 'web' or 'app').

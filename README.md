@@ -104,9 +104,11 @@ cd backend && uv run python -m evals.retrieval  # search quality: vector vs BM25
 
 ## Deploy (free tiers)
 
-1. **Database: Supabase.** Create a project, enable the `vector` extension, then build it from
-   your machine:
-   `DATABASE_URL_ADMIN="<supabase connection string>" ANALYST_RO_PASSWORD="<strong password>" uv run --project backend python -m data.setup_db`
+1. **Database: Supabase.** Create a project (region Frankfurt), copy its **Session pooler**
+   connection string, then build it from your machine:
+   `uv run --project backend python -m data.setup_remote`
+   It asks for the string and the database password (hidden), generates the read-only user's
+   password, builds everything, checks the read-only login and prints `DATABASE_URL_RO`.
 2. **API: Render.** New → Blueprint → this repo (uses `render.yaml`). Fill in `DEEPSEEK_API_KEY`,
    `DATABASE_URL_RO` (user `analyst_ro` with the password above; with Supabase's connection pooler
    the user name is `analyst_ro.<project-ref>`) and `ALLOWED_ORIGINS` (your Vercel URL).

@@ -1,7 +1,7 @@
 from langchain_core.messages import SystemMessage, ToolMessage
 
 from app.agent.graph import build_graph
-from app.agent.service import STEP_LIMIT_MESSAGE, message_text, run_agent
+from app.agent.service import STEP_LIMIT_MESSAGE, message_text, run_agent, stream_agent
 from tests.fakes import GOOD_RESULT, GOOD_SQL, ScriptedLLM, ai_answer, ai_call, make_fake_tools
 
 PROMPT = "You are a test analyst."
@@ -93,3 +93,18 @@ def test_message_text_handles_block_content():
     from langchain_core.messages import AIMessage
     msg = AIMessage(content=[{"type": "text", "text": "Hello"}, {"type": "text", "text": "World"}])
     assert message_text(msg) == "Hello\nWorld"
+
+
+def test_stream_yields_steps_live_then_one_final_result():
+    script = [ai_call("search_knowledge", {"query": "revenue"}, "c1"),
+              ai_call("run_sql", {"sql": GOOD_SQL}, "c2"),
+              ai_answer("North made 10.5.")]
+    events = list(stream_agent(_graph(script)[0], "Revenue by region?"))
+    steps = [e["step"]["tool"] for e in events if e["type"] == "step"]
+    assert steps == ["search_knowledge", "run_sql"]
+    assert events[-1]["type"] == "result"
+    assert [e["type"] for e in events].count("result") == 1
+    # the streamed result is identical to the non-streaming one (apart from timing)
+    expected = run_agent(_graph(script)[0], "Revenue by region?").to_dict()
+    streamed = events[-1]["result"]
+    assert {**streamed, "latency_ms": 0} == {**expected, "latency_ms": 0}

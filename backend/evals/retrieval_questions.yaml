@@ -1,0 +1,54 @@
+# Retrieval evaluation: does search_knowledge put a useful entry in the top 5?
+# relevant: titles that count as a correct hit (an entry title, or a handbook section title).
+# Written before measuring, mixing exact keywords ("AOV", "Brightline") with paraphrases.
+
+- query: what does AOV mean
+  relevant: ["Average order value (AOV)"]
+- query: how is net revenue calculated
+  relevant: ["Net revenue", "Revenue reporting rules"]
+- query: which column has the price the customer actually paid
+  relevant: ["order_items", "Orders and order lines"]
+- query: possible reasons for a refund
+  relevant: ["refunds", "Refunds"]
+- query: can I get customer email addresses
+  relevant: ["customers_safe", "Customers and privacy"]
+- query: count customers who bought something in a quarter
+  relevant: ["Active customer", "How many active customers were there in each quarter of 2024?"]
+- query: share of orders that were cancelled
+  relevant: ["Cancellation rate", "What was the cancellation rate each month in 2024?"]
+- query: Brightline Goods
+  relevant: ["products", "About Larkspur Market"]
+- query: COUNT DISTINCT double counting after joins
+  relevant: ["Query tips and common mistakes"]
+- query: query timeout limit
+  relevant: ["Query tips and common mistakes"]
+- query: what date range does the data cover
+  relevant: ["About Larkspur Market", "orders"]
+- query: difference between signup channel and order channel
+  relevant: ["Customers and privacy"]
+- query: group sales by quarter
+  relevant: ["Monthly trend", "Calendar and periods"]
+- query: definition of units sold
+  relevant: ["Units sold"]
+- query: revenue per supplier
+  relevant: ["What is gross revenue by supplier?"]
+- query: best selling products
+  relevant: ["What are the top 5 products by units sold?"]
+- query: is a refund reported by order date or refund date
+  relevant: ["Refunds"]
+- query: how many days does a customer have to return an item
+  relevant: ["Refunds"]
+- query: is products.unit_price what customers paid
+  relevant: ["Orders and order lines", "order_items", "products"]
+- query: sales in the West broken down by category
+  relevant: ["What is gross revenue by category in the West region?"]
+- query: most frequent reason for returns
+  relevant: ["What are the most common refund reasons?"]
+- query: app versus web average basket size
+  relevant: ["What is the average order value by channel?", "Average order value (AOV)"]
+- query: how many items can one order contain
+  relevant: ["Orders and order lines", "order_items"]
+- query: where is the customer's region stored
+  relevant: ["orders", "customers_safe", "Orders and order lines"]
+- query: Q1 2025 revenue after refunds
+  relevant: ["What was net revenue in Q1 2025?", "Net revenue"]

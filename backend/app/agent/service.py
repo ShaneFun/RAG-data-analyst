@@ -1,8 +1,9 @@
 """Run one question through the agent graph and package the result for the API."""
 import time
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
 from app.charts import chart_hint
 
@@ -35,14 +36,17 @@ def message_text(message: AIMessage) -> str:
     return "\n".join(parts).strip()
 
 
-def run_agent(graph, question: str, *, max_steps: int = 8, input_price_per_m: float = 0.0,
-              output_price_per_m: float = 0.0) -> AgentResult:
-    started = time.perf_counter()
-    state = graph.invoke(
-        {"messages": [HumanMessage(question)], "tool_steps": 0, "steps": [],
-         "last_result": None},
-        {"recursion_limit": 4 * max_steps + 10},
-    )
+def _initial_state(question: str) -> dict:
+    return {"messages": [HumanMessage(question)], "tool_steps": 0, "steps": [],
+            "last_result": None}
+
+
+def _config(max_steps: int) -> dict:
+    return {"recursion_limit": 4 * max_steps + 10}
+
+
+def _result(state: dict, started: float, max_steps: int, input_price_per_m: float,
+            output_price_per_m: float) -> AgentResult:
     final = state["messages"][-1]
     stopped_early = state["tool_steps"] >= max_steps     # answer was forced at the tool limit
     text = "" if getattr(final, "tool_calls", None) else message_text(final)
@@ -70,3 +74,39 @@ def run_agent(graph, question: str, *, max_steps: int = 8, input_price_per_m: fl
         latency_ms=int((time.perf_counter() - started) * 1000),
         stopped_early=stopped_early,
     )
+
+
+def run_agent(graph, question: str, *, max_steps: int = 8, input_price_per_m: float = 0.0,
+              output_price_per_m: float = 0.0) -> AgentResult:
+    started = time.perf_counter()
+    state = graph.invoke(_initial_state(question), _config(max_steps))
+    return _result(state, started, max_steps, input_price_per_m, output_price_per_m)
+
+
+def stream_agent(graph, question: str, *, max_steps: int = 8, input_price_per_m: float = 0.0,
+                 output_price_per_m: float = 0.0) -> Iterator[dict]:
+    """Same as run_agent, but yields events while the agent works:
+
+    {"type": "step", "step": {...}}     after each tool call
+    {"type": "token", "text": "..."}    pieces of text as the LLM writes them
+    {"type": "result", "result": {...}} once, at the end (same shape as /ask)
+
+    Text written before a tool call is thinking-out-loud, not the answer, so a client should
+    clear its draft answer whenever a step arrives.
+    """
+    started = time.perf_counter()
+    state = None
+    for mode, chunk in graph.stream(_initial_state(question), _config(max_steps),
+                                    stream_mode=["updates", "messages", "values"]):
+        if mode == "values":
+            state = chunk                                 # full state after each node
+        elif mode == "updates":
+            for step in (chunk.get("tools") or {}).get("steps", []):
+                yield {"type": "step", "step": step}
+        elif mode == "messages":
+            message, meta = chunk
+            if (meta.get("langgraph_node") == "agent" and isinstance(message, AIMessageChunk)
+                    and isinstance(message.content, str) and message.content):
+                yield {"type": "token", "text": message.content}
+    result = _result(state, started, max_steps, input_price_per_m, output_price_per_m)
+    yield {"type": "result", "result": result.to_dict()}

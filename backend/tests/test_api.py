@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import openai
 import pytest
@@ -21,9 +23,9 @@ def fake_ask(question: str) -> AgentResult:
     )
 
 
-def make_client(ask=fake_ask, **overrides) -> TestClient:
+def make_client(ask=fake_ask, stream=None, **overrides) -> TestClient:
     settings = Settings(_env_file=None, **overrides)
-    return TestClient(create_app(settings=settings, ask=ask))
+    return TestClient(create_app(settings=settings, ask=ask, stream=stream))
 
 
 @pytest.fixture
@@ -77,3 +79,53 @@ def test_cors_allows_only_configured_origin():
                                          "Access-Control-Request-Method": "POST"})
     assert ok.headers.get("access-control-allow-origin") == "https://demo.example.com"
     assert "access-control-allow-origin" not in bad.headers
+
+
+# --- Streaming endpoint (Server-Sent Events) ---
+
+def sse_events(response) -> list[dict]:
+    return [json.loads(line[len("data: "):]) for line in response.text.splitlines()
+            if line.startswith("data: ")]
+
+
+def test_stream_sends_steps_tokens_then_result():
+    def fake_stream(question):
+        yield {"type": "step", "step": {"tool": "run_sql", "input": {}, "ok": True,
+                                        "summary": "2 rows"}}
+        yield {"type": "token", "text": "North "}
+        yield {"type": "token", "text": "leads."}
+        yield {"type": "result", "result": fake_ask(question).to_dict()}
+
+    with make_client(stream=fake_stream) as c:
+        response = c.post("/ask/stream", json={"question": "Orders by region?"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    events = sse_events(response)
+    assert [e["type"] for e in events] == ["step", "token", "token", "result"]
+    assert events[-1]["result"]["answer"] == "Answer to: Orders by region?"
+
+
+def test_stream_without_a_stream_function_falls_back_to_one_result(client):
+    events = sse_events(client.post("/ask/stream", json={"question": "hi"}))
+    assert [e["type"] for e in events] == ["result"]
+
+
+def test_stream_reports_llm_outage_as_an_error_event():
+    def broken_stream(question):
+        yield {"type": "step", "step": {"tool": "search_knowledge", "input": {}, "ok": True,
+                                        "summary": "x"}}
+        raise openai.APIConnectionError(request=httpx.Request("POST", "https://api.deepseek.com"))
+
+    with make_client(stream=broken_stream) as c:
+        events = sse_events(c.post("/ask/stream", json={"question": "anything"}))
+    assert [e["type"] for e in events] == ["step", "error"]
+    assert "unavailable" in events[-1]["message"]
+
+
+def test_stream_validates_input_and_shares_the_rate_limit_with_ask():
+    with make_client(rate_limit="2/hour") as c:
+        assert c.post("/ask/stream", json={"question": " "}).status_code == 422
+        assert c.post("/ask", json={"question": "a"}).status_code == 200
+        assert c.post("/ask/stream", json={"question": "b"}).status_code == 200
+        assert c.post("/ask/stream", json={"question": "c"}).status_code == 429
+        assert c.post("/ask", json={"question": "d"}).status_code == 429

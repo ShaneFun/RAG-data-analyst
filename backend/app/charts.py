@@ -11,9 +11,12 @@ def _is_number(value) -> bool:
 def chart_hint(columns: list[str], rows: list[list]) -> dict:
     """line: first column is a date and a numeric column exists.
     bar: first column is text, at most 20 rows, and a numeric column exists.
-    none: anything else."""
+    none: anything else, including a first column with repeated values (e.g. one row per
+    month AND supplier), where a single line or bar series would be misleading."""
     none = {"type": "none", "x": None, "y": None}
     if len(columns) < 2 or not rows:
+        return none
+    if len({r[0] for r in rows}) != len(rows):
         return none
     numeric = [i for i in range(1, len(columns)) if all(_is_number(r[i]) for r in rows)]
     if not numeric:

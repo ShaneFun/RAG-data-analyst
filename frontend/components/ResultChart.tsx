@@ -28,7 +28,10 @@ export default function ResultChart({
   if (!hint.x || !hint.y) return null;
   const xi = columns.indexOf(hint.x);
   const yi = columns.indexOf(hint.y);
-  const data = rows.map((row) => ({
+  // a line must run in date order, whatever order the SQL returned
+  const ordered =
+    hint.type === "line" ? [...rows].sort((a, b) => String(a[xi]).localeCompare(String(b[xi]))) : rows;
+  const data = ordered.map((row) => ({
     x: hint.type === "line" ? String(row[xi]).slice(0, 7) : row[xi],
     y: row[yi],
   }));

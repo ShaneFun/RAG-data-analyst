@@ -13,8 +13,7 @@ errors, and answers with the numbers, a chart, the result table and the exact SQ
 > Order volume was normal; the drop is almost entirely Electronics (72 units → 8) while every other
 > category grew. Many Electronics items went to zero at once, which suggests a stock-out…*
 
-<!-- Demo GIF: record the site answering the question above (e.g. ScreenToGif), save as docs/demo.gif -->
-<!-- ![Demo](docs/demo.gif) -->
+![Demo: the live site answering "Why did North sales drop in March 2025?", showing the step trace, the streamed answer, the chart, the table and the SQL](docs/demo.gif)
 
 ## Results
 

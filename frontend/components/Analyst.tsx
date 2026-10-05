@@ -23,6 +23,7 @@ export default function Analyst() {
   const [loading, setLoading] = useState(false);
   const [liveSteps, setLiveSteps] = useState<Step[]>([]);
   const [draft, setDraft] = useState("");
+  const [waking, setWaking] = useState(false); // free hosting sleeps when idle
 
   async function submit(text: string) {
     const q = text.trim();
@@ -34,8 +35,13 @@ export default function Analyst() {
     setResult(null);
     setLiveSteps([]);
     setDraft("");
+    setWaking(false);
+    // nothing back after 8 s usually means the free API server is waking up
+    const wakeTimer = setTimeout(() => setWaking(true), 8000);
     try {
       const final = await askStream(q, (event) => {
+        clearTimeout(wakeTimer);
+        setWaking(false);
         if (event.type === "step") {
           setLiveSteps((steps) => [...steps, event.step]);
           setDraft(""); // text written before a tool call was thinking out loud, not the answer
@@ -47,6 +53,8 @@ export default function Analyst() {
     } catch (e) {
       setError(e instanceof AskError ? e.message : "Something went wrong. Try again.");
     } finally {
+      clearTimeout(wakeTimer);
+      setWaking(false);
       setLoading(false);
     }
   }
@@ -120,6 +128,12 @@ export default function Analyst() {
           ) : (
             <p className="mt-6 text-night-soft">
               Working on it. Each step appears below as the analyst takes it.
+            </p>
+          )}
+          {waking && (
+            <p className="mt-3 rounded-lg bg-mist px-4 py-3 text-sm text-night-soft">
+              The demo server sleeps when nobody is using it. The first question after a quiet
+              period can take up to a minute while it wakes up.
             </p>
           )}
           <StepTrace steps={liveSteps} stoppedEarly={false} working />

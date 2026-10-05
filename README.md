@@ -1,5 +1,8 @@
 # Larkspur Analyst: an AI data analyst for a SQL database
 
+**🔗 Live demo: https://rag-data-analyst-eight.vercel.app**  
+<sub>Free hosting: if nobody has used it for a while, the first question can take up to a minute while the server wakes up. After that, answers take a few seconds.</sub>
+
 Ask a business question in plain English. An LLM agent looks up how the database works (RAG over a
 data dictionary, business glossary and example queries), writes **read-only SQL**, fixes its own
 errors, and answers with the numbers, a chart, the result table and the exact SQL it ran.

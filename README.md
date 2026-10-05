@@ -17,6 +17,7 @@
 | **88% → 92%** | top-1 retrieval accuracy after adding hybrid search (BM25 + vectors, RRF) |
 | **~3 s** | median answer time, about **$0.001** per question |
 | **199 tests** | run in CI on every push, with a real Postgres + pgvector |
+| **10 / 10** | tricky prompts passed: prompt injection, requests for personal data, a question in Malay, data that doesn't exist |
 
 ## What it does
 
@@ -98,6 +99,7 @@ cd frontend && cp .env.example .env.local && npm install && npm run dev   # http
 cd backend && uv run pytest                     # all tests (no API key needed: fake LLM)
 cd backend && uv run python -m evals.run_eval   # answer evaluation (calls DeepSeek, ~$0.04)
 cd backend && uv run python -m evals.retrieval  # retrieval evaluation (free)
+cd backend && uv run python -m evals.adversarial  # tricky prompts: injection, languages, missing data (~$0.01)
 cd backend && uv run python -m app.cli "Which supplier has the most refunds?"
 ```
 
